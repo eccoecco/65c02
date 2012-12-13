@@ -74,29 +74,26 @@ DECLARE_INSTRUCTION( 0xFD, SBC, am_Absolute_X );
 
 DEFINE_INSTRUCTION( ORA )
 {
-    rState.regA |= rAddressedByte;
-    rState.testNegative( rState.regA );
-    rState.testZero( rState.regA );
+    rState.regA |= memData;
+    rState.testNegativeZero( rState.regA );
 }
 
 DEFINE_INSTRUCTION( AND )
 {
-    rState.regA &= rAddressedByte;
-    rState.testNegative( rState.regA );
-    rState.testZero( rState.regA );
+    rState.regA &= memData;
+    rState.testNegativeZero( rState.regA );
 }
 
 DEFINE_INSTRUCTION( EOR )
 {
-    rState.regA ^= rAddressedByte;
-    rState.testNegative( rState.regA );
-    rState.testZero( rState.regA );
+    rState.regA ^= memData;
+    rState.testNegativeZero( rState.regA );
 }
 
 DEFINE_INSTRUCTION( ADC )
 {
     // Overflow can only occur when adding two bytes that have identical signs
-    bool canOverflow = rState.sameSign( rState.regA, rAddressedByte );
+/*    bool canOverflow = rState.sameSign( rState.regA, rAddressedByte );
 
     // @TODO: Decimal mode
 
@@ -112,27 +109,26 @@ DEFINE_INSTRUCTION( ADC )
     rState.modifyFlag( canOverflow && !rState.sameSign( rState.regA, rAddressedByte ), flag_V );
     // Overflow has occurred if:
     // 1.) We were adding two byte with identical signs
-    // 2.) The the result now has a different sign than the original
+    // 2.) The the result now has a different sign than the original*/
 }
 
 DEFINE_INSTRUCTION( STA )
 {
-    rAddressedByte = rState.regA;
+    memData = rState.regA;
 }
 
 DEFINE_INSTRUCTION( LDA )
 {
-    rState.regA = rAddressedByte;
-    rState.testNegative( rState.regA );
-    rState.testZero( rState.regA );
+    rState.regA = memData;
+    rState.testNegativeZero( rState.regA );
 }
 
 DEFINE_INSTRUCTION( CMP )
 {
-    uint8_t tmp = rState.regA - rAddressedByte;
+/*    uint8_t tmp = rState.regA - rAddressedByte;
     rState.modifyFlag( rState.regA >= rAddressedByte, flag_C );
     rState.testNegative( tmp );
-    rState.testZero( tmp );
+    rState.testZero( tmp );*/
 }
 
 DEFINE_INSTRUCTION( SBC )
@@ -186,15 +182,15 @@ DECLARE_INSTRUCTION( 0xFE, INC, am_Absolute_X );
 
 DEFINE_INSTRUCTION( ASL )
 {
-    rState.modifyFlag( (rAddressedByte & 0x80) != 0, flag_C );
+/*    rState.modifyFlag( (rAddressedByte & 0x80) != 0, flag_C );
     rAddressedByte <<= 1;
     rState.testNegative( rAddressedByte );
-    rState.testZero( rAddressedByte );
+    rState.testZero( rAddressedByte );*/
 }
 
 DEFINE_INSTRUCTION( ROL )
 {
-    bool carryFlag = rState.isFlagSet( flag_C );
+/*    bool carryFlag = rState.isFlagSet( flag_C );
 
     rState.modifyFlag( (rAddressedByte & 0x80) != 0, flag_C );
     rAddressedByte <<= 1;
@@ -202,21 +198,21 @@ DEFINE_INSTRUCTION( ROL )
     if( carryFlag ) rAddressedByte |= 0x01;
 
     rState.testNegative( rAddressedByte );
-    rState.testZero( rAddressedByte );
+    rState.testZero( rAddressedByte );*/
 }
 
 DEFINE_INSTRUCTION( LSR )
 {
-    rState.modifyFlag( (rAddressedByte & 0x01) != 0, flag_C );
+/*    rState.modifyFlag( (rAddressedByte & 0x01) != 0, flag_C );
     rAddressedByte >>= 1;
     rAddressedByte &= 0x7F;
     rState.testNegative( rAddressedByte ); // Wouldn't this always clear the N flag?
-    rState.testZero( rAddressedByte );
+    rState.testZero( rAddressedByte );*/
 }
 
 DEFINE_INSTRUCTION( ROR )
 {
-    uint16_t tmp = rAddressedByte;
+/*    uint16_t tmp = rAddressedByte;
     if( rState.isFlagSet( flag_C ) )
         tmp |= 0x0100;
 
@@ -225,41 +221,44 @@ DEFINE_INSTRUCTION( ROR )
 
     rAddressedByte = static_cast<uint8_t>(tmp);
     rState.testNegative( rAddressedByte );
-    rState.testZero( rAddressedByte );
+    rState.testZero( rAddressedByte );*/
 }
 
 DEFINE_INSTRUCTION( STX )
 {
-    rAddressedByte = rState.regX;
+    memData = rState.regX;
 }
 
 DEFINE_INSTRUCTION( LDX )
 {
-    rState.regX = rAddressedByte;
-    rState.testNegative( rState.regX );
-    rState.testZero( rState.regX );
+    rState.regX = memData;
+    rState.testNegativeZero( rState.regX );
 }
 
 DEFINE_INSTRUCTION( DEC )
 {
-    --rAddressedByte;
-    rState.testNegative( rAddressedByte );
-    rState.testZero( rAddressedByte );
+    uint8_t tmp = memData;
+    --tmp;
+    memData = tmp;
+
+    rState.testNegativeZero( tmp );
 }
 
 DEFINE_INSTRUCTION( INC )
 {
-    ++rAddressedByte;
-    rState.testNegative( rAddressedByte );
-    rState.testZero( rAddressedByte );
+    uint8_t tmp = memData;
+    ++tmp;
+    memData = tmp;
+
+    rState.testNegativeZero( tmp );
 }
 
 DECLARE_INSTRUCTION( 0x24, BIT, am_ZeroPage );
 DECLARE_INSTRUCTION( 0x2C, BIT, am_Absolute );
 
 // The various jumps are special exceptions where we manually get the next word
-DECLARE_INSTRUCTION( 0x4C, JMP_A, am_Accum );
-DECLARE_INSTRUCTION( 0x6C, JMP_I, am_Accum );
+DECLARE_INSTRUCTION( 0x4C, JMP, am_Absolute );
+DECLARE_INSTRUCTION( 0x6C, JMP, am_Indirect );
 
 DECLARE_INSTRUCTION( 0x84, STY, am_ZeroPage );
 DECLARE_INSTRUCTION( 0x8C, STY, am_Absolute );
@@ -284,40 +283,38 @@ DEFINE_INSTRUCTION( BIT )
     // TODO
 }
 
-DEFINE_INSTRUCTION( JMP_A )
+DEFINE_INSTRUCTION( JMP )
 {
-    rState.regPC = rState.pcReadWord();
-}
-
-DEFINE_INSTRUCTION( JMP_I )
-{
-    rState.regPC = rState.memReadWord( rState.pcReadWord() );
+    // Assume a memory memData
+    if( opCode == 0x4C )
+        rState.regPC = memData.m_memAddr;
+    else
+        rState.regPC = rState.memReadWord( memData.m_memAddr );
 }
 
 DEFINE_INSTRUCTION( STY )
 {
-    rAddressedByte = rState.regY;
+    memData = rState.regY;
 }
 
 DEFINE_INSTRUCTION( LDY )
 {
-    rState.regY = rAddressedByte;
-    rState.testNegative( rState.regY );
-    rState.testZero( rState.regY );
+    rState.regY = memData;
+    rState.testNegativeZero( memData );
 }
 
 DEFINE_INSTRUCTION( CPY )
 {
-    rState.modifyFlag( rState.regY >= rAddressedByte, flag_C );
+/*    rState.modifyFlag( rState.regY >= rAddressedByte, flag_C );
     rState.modifyFlag( rState.regY == rAddressedByte, flag_Z );
-    rState.modifyFlag( rState.regY < rAddressedByte, flag_N );
+    rState.modifyFlag( rState.regY < rAddressedByte, flag_N );*/
 }
 
 DEFINE_INSTRUCTION( CPX )
 {
-    rState.modifyFlag( rState.regX >= rAddressedByte, flag_C );
+/*    rState.modifyFlag( rState.regX >= rAddressedByte, flag_C );
     rState.modifyFlag( rState.regX == rAddressedByte, flag_Z );
-    rState.modifyFlag( rState.regX < rAddressedByte, flag_N );
+    rState.modifyFlag( rState.regX < rAddressedByte, flag_N );*/
 }
 
 DECLARE_INSTRUCTION( 0x10, BPL, am_Immediate );

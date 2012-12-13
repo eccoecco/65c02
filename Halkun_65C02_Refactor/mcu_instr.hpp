@@ -24,10 +24,10 @@ template <uint8_t opCodeNumber> inline std::string mcuInstructionName() { return
 // 1.) mcuInstruction_BRK() to exist (so that other functions can call the instruction by its name), and
 // 2.) mcuInstructionExecute<0> to exist, and for it to inline mcuInstruction_BRK() with zero page addressing mode, and
 // 3.) mcuInstructionName<0> to return "BRK".
-#define DECLARE_INSTRUCTION( opCode, instrName, addressingMode ) \
-    inline void mcuInstruction_ ## instrName( tMCUState& rState, uint8_t& rAddressedByte ); \
-    template<> inline void mcuInstructionExecute< opCode >( tMCUState& rState ) { mcuInstruction_ ## instrName( rState, rState.pcDecodeAddress( addressingMode ) ); } \
-    template<> inline std::string mcuInstructionName< opCode >() { return #instrName; }
+#define DECLARE_INSTRUCTION( instrOpCode, instrName, addressingMode ) \
+    template<typename tAccessor> inline void mcuInstruction_ ## instrName( tMCUState&, tAccessor, uint8_t ); \
+    template<> inline void mcuInstructionExecute< instrOpCode >( tMCUState& rState ) { mcuInstruction_ ## instrName( rState, rState.makeAccessor( addressingMode ), instrOpCode ); } \
+    template<> inline std::string mcuInstructionName< instrOpCode >() { return #instrName; }
 
 // Use this to actually instantiate the instruction
 // DEFINE_INSTRUCTION( BRK )
@@ -38,8 +38,9 @@ template <uint8_t opCodeNumber> inline std::string mcuInstructionName() { return
 // the opcode again.  Any typos will cause a link error.
 //   The arguments that can be used are:
 // 1.) rState - the main mcu state
-// 2.) rAddressedByte - a reference to the addressed byte
+// 2.) accessor - an accessor to the data in question, if any
+// 3.) opCode - the numeric opcode
 #define DEFINE_INSTRUCTION( instrName ) \
-    inline void mcuInstruction_ ## instrName( tMCUState& rState, uint8_t& rAddressedByte )
+    template<typename tAccessor> inline void mcuInstruction_ ## instrName( tMCUState& rState, tAccessor memData, uint8_t opCode )
 
 #endif

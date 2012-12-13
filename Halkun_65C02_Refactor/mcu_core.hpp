@@ -16,11 +16,9 @@ enum eFlags
     flag_N = 0x80, // Negative
 };
 
-// These addressing modes return a reference to a byte of data
-enum eAddressingMode
+// These addressing modes access memory
+enum eAddressingMode_Mem
 {
-    am_Implied,
-    am_Accum,
     am_Immediate,
     am_ZeroPage,
     am_ZeroPage_X,
@@ -29,8 +27,16 @@ enum eAddressingMode
     am_Absolute,
     am_Absolute_X,
     am_Absolute_Y,
+    am_Indirect,
     am_Indirect_X,
     am_Indirect_Y,
+};
+
+// These addressing modes do not 
+enum eAddressingMode_Null
+{
+    am_Implied,
+    am_Accum,
 };
 
 struct tMCUState
@@ -117,27 +123,72 @@ struct tMCUState
         return retVal;
     }
 
-    // Returns a reference to the data that's addressed
-    inline uint8_t& pcDecodeAddress( eAddressingMode mode )
+    class tMemoryAccessor
+    {
+        tMCUState& m_rState;
+    public:
+        uint16_t m_memAddr;
+
+        tMemoryAccessor( tMCUState& rState, uint16_t memAddr ) : m_rState( rState ), m_memAddr( memAddr ) {}
+        uint8_t operator=( uint8_t writeValue )
+        { m_rState.memWriteByte( m_memAddr, writeValue ); }
+        operator uint8_t() const
+        { return m_rState.memReadByte( m_memAddr ); }
+    };
+
+    class tRegisterAccessor
+    {
+        uint8_t& m_rRegister;
+    public:
+        tRegisterAccessor( uint8_t& rRegister ) : m_rRegister( rRegister ) {}
+        uint8_t operator=( uint8_t writeValue )
+        { m_rRegister = writeValue; }
+        operator uint8_t() const
+        { return m_rRegister; }
+    };
+
+    class tNullAccessor
+    {
+        // Empty class - does nothing - will cause an error if an attempt is made to read/write to it
+    };
+
+    inline tMemoryAccessor makeAccessor( eAddressingMode_Mem mode )
     {
         switch ( mode )
         {
-        default: assert( false ); // Unknown addressing mode!  Fall through to accumulator
-        case am_Implied:        return regA; // Just return something valid
-        case am_Accum:          return regA;
-        case am_Immediate:      return m_pMemory[ ++regPC ];
-        case am_ZeroPage:       return m_pMemory[ pcReadByte() ];
-        case am_ZeroPage_X:     return m_pMemory[ (pcReadByte() + regX) & UINT8_MAX ];
-        case am_ZeroPage_Y:     return m_pMemory[ (pcReadByte() + regY) & UINT8_MAX ];
-        case am_Relative:       return m_pMemory[ ++regPC ];
-        case am_Absolute:       return m_pMemory[ pcReadWord() ];
-        case am_Absolute_X:     return m_pMemory[ pcReadWord() + regX ];
-        case am_Absolute_Y:     return m_pMemory[ pcReadWord() + regY ];
-        case am_Indirect_X:     return m_pMemory[ memReadWord( (pcReadByte() + regX) & UINT8_MAX ) ];
-        case am_Indirect_Y:     return m_pMemory[ memReadWord( pcReadByte() ) + regY ];
+        case am_Immediate:      return tMemoryAccessor( *this, ++regPC );
+        case am_ZeroPage:       return tMemoryAccessor( *this, pcReadByte() );
+        case am_ZeroPage_X:     return tMemoryAccessor( *this, (pcReadByte() + regX) & UINT8_MAX );
+        case am_ZeroPage_Y:     return tMemoryAccessor( *this, (pcReadByte() + regY) & UINT8_MAX );
+        case am_Relative:       return tMemoryAccessor( *this, ++regPC );
+        case am_Absolute:       return tMemoryAccessor( *this, pcReadWord() );
+        case am_Absolute_X:     return tMemoryAccessor( *this, pcReadWord() + regX );
+        case am_Absolute_Y:     return tMemoryAccessor( *this, pcReadWord() + regY );
+        case am_Indirect:       return tMemoryAccessor( *this, pcReadWord() );
+        case am_Indirect_X:     return tMemoryAccessor( *this, memReadWord( (pcReadByte() + regX) & UINT8_MAX ) );
+        case am_Indirect_Y:     return tMemoryAccessor( *this, memReadWord( pcReadByte() ) + regY );
+        default:                assert( false );
         }
+
+        return tMemoryAccessor( *this, 0 );
     }
 
+    inline tNullAccessor makeAccessor( eAddressingMode_Null )
+    { return tNullAccessor(); }
+
+    /*
+    am_Immediate,
+    am_ZeroPage,
+    am_ZeroPage_X,
+    am_ZeroPage_Y,
+    am_Relative,
+    am_Absolute,
+    am_Absolute_X,
+    am_Absolute_Y,
+    am_Indirect,
+    am_Indirect_X,
+    am_Indirect_Y,
+*/
     inline void modifyFlag( bool setFlag, eFlags flags )
     {
         uint8_t flagMask = static_cast<uint8_t>(flags);
@@ -155,6 +206,7 @@ struct tMCUState
 
     inline void testNegative( const uint8_t& rValue ) { modifyFlag( (rValue & 0x80) != 0, flag_N ); }
     inline void testZero( const uint8_t& rValue ) { modifyFlag( (rValue == 0), flag_Z ); }
+    inline void testNegativeZero( const uint8_t& rValue ) { testNegative( rValue ); testZero( rValue ); }
 
     // Returns whether or not two bytes have the same sign
     inline static bool sameSign( uint8_t value1, uint8_t value2 )
