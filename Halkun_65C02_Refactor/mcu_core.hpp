@@ -73,6 +73,9 @@ struct tMCUState
         regPC = memReadWord( cResetVector );
     }
 
+    // Executes a single instruction
+    void pcExecute();
+
     // @TODO: Allow access to special memory locations
     uint8_t memReadByte( uint16_t address ) const
     { return m_pMemory[address]; }
@@ -127,6 +130,7 @@ struct tMCUState
     {
         uint16_t result = stackPopByte();
         result |= (stackPopByte() << 8);
+        return result;
     }
 
     uint8_t pcReadByte() // Reads a byte from where PC is, and increments PC
@@ -155,7 +159,7 @@ struct tMCUState
 
         tMemoryAccessor( tMCUState& rState, uint16_t memAddr ) : m_rState( rState ), m_memAddr( memAddr ) {}
         uint8_t operator=( uint8_t writeValue )
-        { m_rState.memWriteByte( m_memAddr, writeValue ); }
+        { m_rState.memWriteByte( m_memAddr, writeValue ); return writeValue; }
         operator uint8_t() const
         { return m_rState.memReadByte( m_memAddr ); }
     };
@@ -166,7 +170,7 @@ struct tMCUState
     public:
         tRegisterAccessor( uint8_t& rRegister ) : m_rRegister( rRegister ) {}
         uint8_t operator=( uint8_t writeValue )
-        { m_rRegister = writeValue; }
+        { m_rRegister = writeValue; return writeValue; }
         operator uint8_t() const
         { return m_rRegister; }
     };
