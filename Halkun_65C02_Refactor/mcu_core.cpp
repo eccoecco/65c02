@@ -46,11 +46,11 @@ void tMCUState::pcExecute()
 }
 
 // Decodes the current instruction into a human readable string
-std::string tMCUState::pcDecode()
+std::string tMCUState::decodeFullOpcode( uint16_t memPos )
 {
-    std::string addressingMode = decodeAddressing();
+    std::string addressingMode = decodeAddressing( memPos );
 
-    std::string opCodeName = decodeOpcode();
+    std::string opCodeName = decodeOpcode( memPos );
 
     if( !addressingMode.empty() )
     {
@@ -62,15 +62,15 @@ std::string tMCUState::pcDecode()
 }
 
 // Adds one byte for the opcode
-uint8_t tMCUState::decodeFullOpcodeLength()
+uint8_t tMCUState::decodeFullOpcodeLength( uint16_t memPos )
 {
-    return 1 + decodeAddressingLength();
+    return 1 + decodeAddressingLength( memPos );
 }
 
-// Returns number of bytes used in the addressing of the current opcode@regPC
-uint8_t tMCUState::decodeAddressingLength()
+// Returns number of bytes used in the addressing of the opcode@memPos
+uint8_t tMCUState::decodeAddressingLength( uint16_t memPos )
 {
-    uint8_t opCode = memReadByte( regPC );
+    uint8_t opCode = memReadByte( memPos );
 
     switch( opCode )
     {
@@ -84,9 +84,9 @@ uint8_t tMCUState::decodeAddressingLength()
 }
 
 // Grabs the opcode's name
-std::string tMCUState::decodeOpcode()
+std::string tMCUState::decodeOpcode( uint16_t memPos )
 {
-    uint8_t opCode = memReadByte( regPC );
+    uint8_t opCode = memReadByte( memPos );
 
     switch( opCode )
     {
@@ -99,9 +99,10 @@ std::string tMCUState::decodeOpcode()
     return "??";
 }
 
-std::string tMCUState::decodeAddressing()
+std::string tMCUState::decodeAddressing( uint16_t memPos )
 {
-    uint8_t opCode = memReadByte( regPC );
+    uint8_t opCode = memReadByte( memPos );
+    m_decodePos = memPos + 1;
 
     switch( opCode )
     {
@@ -118,7 +119,7 @@ std::string tMCUState::decodeAddressing( eAddressingMode_Mem mode )
 {
     std::stringstream addressedElement;
 
-    uint16_t memLoc = regPC + 1; // regPC is where the current opcode sits, so regPC + 1 is where the addressing starts
+    uint16_t memLoc = m_decodePos;
 
     addressedElement << std::hex << std::setfill('0');
 

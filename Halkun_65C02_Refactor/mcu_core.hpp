@@ -64,7 +64,7 @@ struct tMCUState
     static const uint16_t cStackOffset = 0x0100; // Address in memory where the stack is offset
 
     // Constructor - pass in 64k of memory
-    tMCUState( uint8_t *pMemory ) : m_pMemory( pMemory )
+    tMCUState( uint8_t *pMemory ) : m_pMemory( pMemory ), m_decodePos( 0 )
     { cpuReset(); }
 
     // Useful functions
@@ -79,13 +79,15 @@ struct tMCUState
     // Executes a single instruction
     void pcExecute();
     // Decodes the current instruction into a human readable string
-    std::string pcDecode();
+    std::string pcDecode() { return decodeFullOpcode( regPC ); }
 
-    uint8_t decodeFullOpcodeLength(); // Returns number of bytes used in the opcode + addressing @regPC
+    std::string decodeFullOpcode( uint16_t memPos ); // Decodes both the opcode + addressing
+    uint8_t decodeFullOpcodeLength( uint16_t memPos ); // Returns number of bytes used in the opcode + addressing @memPos
 
-    std::string decodeOpcode();
-    std::string decodeAddressing();
-    uint8_t decodeAddressingLength(); // Returns number of bytes used in the opcode + addressing @regPC
+    std::string decodeOpcode( uint16_t memPos ); // Returns a human readable string for the opcode @memPos
+    std::string decodeAddressing( uint16_t memPos ); // Returns a human readable string for the addressing of the opcode @memPos
+    uint8_t decodeAddressingLength( uint16_t memPos ); // Returns number of bytes used in the addressing @memPos
+
     // Called to treat the next few bytes as specific addressing modes
     std::string decodeAddressing( eAddressingMode_Mem mode );
     std::string decodeAddressing( eAddressingMode_Register mode );
@@ -296,6 +298,8 @@ struct tMCUState
 
 private:
     tMCUState(); // Disallowed - always need a pointer to memory
+
+    uint16_t    m_decodePos; // Used internally for address decoding
 };
 
 #endif
