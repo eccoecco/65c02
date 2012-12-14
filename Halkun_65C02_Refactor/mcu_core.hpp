@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <cassert>
+#include <string>
 
 enum eFlags
 {
@@ -34,12 +35,13 @@ enum eAddressingMode_Mem
     am_AbsIdxIndirect, // Introduced in 65c02
 };
 
+// This addressing mode allows direct access to the registers
 enum eAddressingMode_Register
 {
     am_Accum,
 };
 
-// These addressing modes do not 
+// These addressing modes do not allow access to anything, and will cause a compiler error if attempted
 enum eAddressingMode_Null
 {
     am_Implied,
@@ -58,6 +60,7 @@ struct tMCUState
 
     // Constants
     static const uint16_t cResetVector = 0xFFFC; // Address where the reset vector should be
+    static const uint16_t cIRQVector   = 0xFFFE; // Address where the IRQ vector should be
     static const uint16_t cStackOffset = 0x0100; // Address in memory where the stack is offset
 
     // Constructor - pass in 64k of memory
@@ -75,6 +78,18 @@ struct tMCUState
 
     // Executes a single instruction
     void pcExecute();
+    // Decodes the current instruction into a human readable string
+    std::string pcDecode();
+
+    std::string decodeOpcode();
+    std::string decodeAddressing();
+    // Called to treat the next few bytes as specific addressing modes
+    std::string decodeAddressing( eAddressingMode_Mem mode );
+    std::string decodeAddressing( eAddressingMode_Register mode );
+    std::string decodeAddressing( eAddressingMode_Null mode );
+
+    // =====
+    // Useful actions
 
     // @TODO: Allow access to special memory locations
     uint8_t memReadByte( uint16_t address ) const
@@ -151,6 +166,9 @@ struct tMCUState
         regPC += signedOffset;
     }
 
+    // =====
+    // Memory accessors used for instruction set templating
+
     class tMemoryAccessor
     {
         tMCUState& m_rState;
@@ -220,19 +238,8 @@ struct tMCUState
     inline tNullAccessor makeAccessor( eAddressingMode_Null )
     { return tNullAccessor(); }
 
-    /*
-    am_Immediate,
-    am_ZeroPage,
-    am_ZeroPage_X,
-    am_ZeroPage_Y,
-    am_Relative,
-    am_Absolute,
-    am_Absolute_X,
-    am_Absolute_Y,
-    am_Indirect,
-    am_Indirect_X,
-    am_Indirect_Y,
-*/
+    // =====
+    // Flag interaction convenience functions
     inline void modifyFlag( bool setFlag, eFlags flags )
     {
         uint8_t flagMask = static_cast<uint8_t>(flags);

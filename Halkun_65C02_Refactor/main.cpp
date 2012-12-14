@@ -1,34 +1,44 @@
 #include <iostream>
+#include <iomanip>
 #include <cstdint>
 #include <cassert>
 
-template <uint8_t opCode> inline void opCodeExecute( uint8_t arg )
+#include "mcu_core.hpp"
+
+void printState( tMCUState& rState )
 {
-    std::cout << "Unimplemented opcode: " << opCode << std::endl;
-    assert( false );
+
 }
 
-//template <> inline void opCodeExecute<3>( uint8_t arg );
-
-template <> inline void opCodeExecute<5>( uint8_t arg )
+void testFunc()
 {
-    std::cerr << "Hello!";
+
+}
+
+void test2()
+{
+    return testFunc();
 }
 
 int main( int argc, char *argv[] )
 {
-    switch( argc )
+    uint8_t mcuMemory[65536];
+
+    for( unsigned int i = 0; i < 65536; ++i )
+        mcuMemory[i] = i & 0xFF;
+
+    tMCUState mcu( mcuMemory );
+
+    for( unsigned int i = 0; i < 256; ++i )
     {
-    case 0: opCodeExecute<0>( argc ); break;
-    case 1: opCodeExecute<1>( argc ); break;
-    case 2: opCodeExecute<2>( argc ); break;
-    case 3: opCodeExecute<3>( argc ); break;
-    case 4: opCodeExecute<4>( argc ); break;
-    case 5: opCodeExecute<5>( argc ); break;
-    case 6: opCodeExecute<6>( argc ); break;
-    case 7: opCodeExecute<7>( argc ); break;
-    default:
-        break;
+        mcu.regPC = i;
+
+        std::cout << std::hex << std::setw(2)  << std::setfill('0') << i;
+
+        std::cout << " : " << mcu.pcDecode() << std::endl;
+
+        if( (i & 7) == 7 )
+            std::cin.get();
     }
 
     return 0;

@@ -410,14 +410,14 @@ DEFINE_INSTRUCTION( CPX )
     rState.modifyFlag( rState.regX < addressedByte, flag_N );
 }
 
-DECLARE_INSTRUCTION( 0x10, BPL, am_Immediate );
-DECLARE_INSTRUCTION( 0x30, BMI, am_Immediate );
-DECLARE_INSTRUCTION( 0x50, BVC, am_Immediate );
-DECLARE_INSTRUCTION( 0x70, BVS, am_Immediate );
-DECLARE_INSTRUCTION( 0x90, BCC, am_Immediate );
-DECLARE_INSTRUCTION( 0xB0, BCS, am_Immediate );
-DECLARE_INSTRUCTION( 0xD0, BNE, am_Immediate );
-DECLARE_INSTRUCTION( 0xF0, BEQ, am_Immediate );
+DECLARE_INSTRUCTION( 0x10, BPL, am_Relative );
+DECLARE_INSTRUCTION( 0x30, BMI, am_Relative );
+DECLARE_INSTRUCTION( 0x50, BVC, am_Relative );
+DECLARE_INSTRUCTION( 0x70, BVS, am_Relative );
+DECLARE_INSTRUCTION( 0x90, BCC, am_Relative );
+DECLARE_INSTRUCTION( 0xB0, BCS, am_Relative );
+DECLARE_INSTRUCTION( 0xD0, BNE, am_Relative );
+DECLARE_INSTRUCTION( 0xF0, BEQ, am_Relative );
 
 DEFINE_INSTRUCTION( BPL )
 {
