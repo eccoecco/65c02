@@ -61,6 +61,28 @@ std::string tMCUState::pcDecode()
     return opCodeName;
 }
 
+// Adds one byte for the opcode
+uint8_t tMCUState::decodeFullOpcodeLength()
+{
+    return 1 + decodeAddressingLength();
+}
+
+// Returns number of bytes used in the addressing of the current opcode@regPC
+uint8_t tMCUState::decodeAddressingLength()
+{
+    uint8_t opCode = memReadByte( regPC );
+
+    switch( opCode )
+    {
+    EXEC_OPCODE_64( 0, mcuInstructionDecodeLength );
+    EXEC_OPCODE_64( 1 * 64, mcuInstructionDecodeLength );
+    EXEC_OPCODE_64( 2 * 64, mcuInstructionDecodeLength );
+    EXEC_OPCODE_64( 3 * 64, mcuInstructionDecodeLength );
+    }
+
+    return 0;
+}
+
 // Grabs the opcode's name
 std::string tMCUState::decodeOpcode()
 {

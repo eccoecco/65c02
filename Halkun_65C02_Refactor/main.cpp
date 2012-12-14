@@ -10,16 +10,6 @@ void printState( tMCUState& rState )
 
 }
 
-void testFunc()
-{
-
-}
-
-void test2()
-{
-    return testFunc();
-}
-
 int main( int argc, char *argv[] )
 {
     uint8_t mcuMemory[65536];
@@ -38,8 +28,18 @@ int main( int argc, char *argv[] )
         std::cout << " : " << mcu.pcDecode() << std::endl;
 
         if( (i & 7) == 7 )
-            std::cin.get();
+            break;
     }
+
+    mcu.regPC = 0;
+    for( unsigned i = 0; i < 8; ++i )
+    {
+        uint8_t opCodeLength = mcu.decodeFullOpcodeLength();
+        std::cout << " : " << mcu.pcDecode() << " [" << unsigned(opCodeLength) << "]" << std::endl;
+        mcu.regPC += opCodeLength;
+    }
+
+    std::cin.get();
 
     return 0;
 }

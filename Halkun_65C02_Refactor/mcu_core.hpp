@@ -81,8 +81,11 @@ struct tMCUState
     // Decodes the current instruction into a human readable string
     std::string pcDecode();
 
+    uint8_t decodeFullOpcodeLength(); // Returns number of bytes used in the opcode + addressing @regPC
+
     std::string decodeOpcode();
     std::string decodeAddressing();
+    uint8_t decodeAddressingLength(); // Returns number of bytes used in the opcode + addressing @regPC
     // Called to treat the next few bytes as specific addressing modes
     std::string decodeAddressing( eAddressingMode_Mem mode );
     std::string decodeAddressing( eAddressingMode_Register mode );
@@ -221,7 +224,6 @@ struct tMCUState
         return tMemoryAccessor( *this, 0 );
     }
 
-
     inline tRegisterAccessor makeAccessor( eAddressingMode_Register mode )
     {
         switch( mode )
@@ -234,9 +236,38 @@ struct tMCUState
         return tRegisterAccessor( regA );
     }
 
-
     inline tNullAccessor makeAccessor( eAddressingMode_Null )
     { return tNullAccessor(); }
+
+    // Returns number of bytes an address mode takes, in addition to its opcode
+    inline uint8_t decodeLength( eAddressingMode_Mem mode ) const
+    {
+        switch( mode )
+        {
+        case am_Immediate:      return 1;
+        case am_ZeroPage:       return 1;
+        case am_ZeroPage_X:     return 1;
+        case am_ZeroPage_Y:     return 1;
+        case am_Relative:       return 1;
+        case am_Absolute:       return 2;
+        case am_Absolute_X:     return 2;
+        case am_Absolute_Y:     return 2;
+        case am_Indirect:       return 2;
+        case am_Indirect_X:     return 1;
+        case am_Indirect_Y:     return 1;
+        case am_Indirect_ZP:    return 1;
+        case am_AbsIdxIndirect: return 2;
+        default:                assert( false );
+        }
+
+        return 0;
+    }
+
+    inline uint8_t decodeLength( eAddressingMode_Register ) const
+    { return 0; }
+
+    inline uint8_t decodeLength( eAddressingMode_Null ) const
+    { return 0; }
 
     // =====
     // Flag interaction convenience functions

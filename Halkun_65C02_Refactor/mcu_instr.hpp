@@ -17,7 +17,10 @@
 template <uint8_t opCodeNumber> inline void mcuInstructionExecute( tMCUState& rState ) { assert( false ); }
 // Generic template for uninstantiated instructions returns an empty string as its name
 template <uint8_t opCodeNumber> inline std::string mcuInstructionName( tMCUState& ) { return "??"; }
-template <uint8_t opCodeNumber> inline std::string mcuInstructionDecodeAddressing( tMCUState& rState ) { return "?"; }
+// Returns a human friendly string that describes how the address will be decoded for this opcode
+template <uint8_t opCodeNumber> inline std::string mcuInstructionDecodeAddressing( tMCUState& ) { return "?"; }
+// Number of bytes (not counting the opcode) used to hold addressing information
+template <uint8_t opCodeNumber> inline uint8_t mcuInstructionDecodeLength( tMCUState& ) { return 0; }
 
 // Use this to declare the instruction to exist by declaring its opcode, mnemonic, and addressing mode
 // DECLARE_INSTRUCTION( 0, BRK, am_ZeroPage );
@@ -29,7 +32,9 @@ template <uint8_t opCodeNumber> inline std::string mcuInstructionDecodeAddressin
     template<typename tAccessor> inline void mcuInstruction_ ## instrName( tMCUState&, tAccessor, uint8_t ); \
     template<> inline void mcuInstructionExecute< instrOpCode >( tMCUState& rState ) { mcuInstruction_ ## instrName( rState, rState.makeAccessor( addressingMode ), instrOpCode ); } \
     template<> inline std::string mcuInstructionName< instrOpCode >( tMCUState& ) { return #instrName; } \
-    template<> inline std::string mcuInstructionDecodeAddressing< instrOpCode >( tMCUState& rState ) { return rState.decodeAddressing( addressingMode ); }
+    template<> inline std::string mcuInstructionDecodeAddressing< instrOpCode >( tMCUState& rState ) { return rState.decodeAddressing( addressingMode ); } \
+    template<> inline uint8_t mcuInstructionDecodeLength< instrOpCode >( tMCUState& rState ) { return rState.decodeLength( addressingMode ); }
+
 
 // Use this to actually instantiate the instruction
 // DEFINE_INSTRUCTION( BRK )
