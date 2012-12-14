@@ -32,11 +32,15 @@ enum eAddressingMode_Mem
     am_Indirect_Y,
 };
 
+enum eAddressingMode_Register
+{
+    am_Accum,
+};
+
 // These addressing modes do not 
 enum eAddressingMode_Null
 {
     am_Implied,
-    am_Accum,
 };
 
 struct tMCUState
@@ -82,7 +86,7 @@ struct tMCUState
     void memWriteByte( uint16_t address, uint8_t data )
     { m_pMemory[address] = data; }
 
-    void stackPush( uint8_t value ) // Pushes a byte on to the stack
+    void stackPushByte( uint8_t value ) // Pushes a byte on to the stack
     {
         assert( regSP > 0 );
 
@@ -97,7 +101,7 @@ struct tMCUState
         }
     }
 
-    uint8_t stackPop() // Pops a byte from the stack
+    uint8_t stackPopByte() // Pops a byte from the stack
     {
         assert( regSP < UINT8_MAX );
 
@@ -111,6 +115,18 @@ struct tMCUState
         return 0;
     }
 
+    void stackPushWord( uint16_t value )
+    {
+        stackPushByte( static_cast<uint8_t>(value) );
+        stackPushByte( static_cast<uint8_t>(value >> 8) );
+    }
+
+    uint16_t stackPopWord()
+    {
+        uint16_t result = stackPopByte();
+        result |= (stackPopByte() << 8);
+    }
+
     uint8_t pcReadByte() // Reads a byte from where PC is, and increments PC
     {
         return memReadByte( regPC++ );
@@ -121,6 +137,12 @@ struct tMCUState
         uint16_t retVal = memReadWord( regPC );
         regPC += 2;
         return retVal;
+    }
+
+    void pcBranchOffset( uint8_t offset )
+    {
+        int8_t signedOffset = static_cast<int8_t>(offset);
+        regPC += signedOffset;
     }
 
     class tMemoryAccessor
@@ -154,7 +176,7 @@ struct tMCUState
 
     inline tMemoryAccessor makeAccessor( eAddressingMode_Mem mode )
     {
-        switch ( mode )
+        switch( mode )
         {
         case am_Immediate:      return tMemoryAccessor( *this, ++regPC );
         case am_ZeroPage:       return tMemoryAccessor( *this, pcReadByte() );
@@ -172,6 +194,20 @@ struct tMCUState
 
         return tMemoryAccessor( *this, 0 );
     }
+
+
+    inline tRegisterAccessor makeAccessor( eAddressingMode_Register mode )
+    {
+        switch( mode )
+        {
+        case am_Accum:          return tRegisterAccessor( regA );
+        default:                assert( false );
+        }
+
+        // Unknown accessor type!  Just return A
+        return tRegisterAccessor( regA );
+    }
+
 
     inline tNullAccessor makeAccessor( eAddressingMode_Null )
     { return tNullAccessor(); }
