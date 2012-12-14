@@ -670,7 +670,52 @@ DECLARE_INSTRUCTION( 0x7A, PLY, am_Implied );
 DECLARE_INSTRUCTION( 0xDA, PHX, am_Implied );
 DECLARE_INSTRUCTION( 0xFA, PLX, am_Implied );
 
+DEFINE_INSTRUCTION( STZ )
+{
+    memData = 0;
+}
+
+DEFINE_INSTRUCTION( TSB )
+{
+    uint8_t addressedByte = memData;
+
+    rState.modifyFlag( (addressedByte & rState.regA) != 0, flag_Z );
+
+    memData = addressedByte | rState.regA;
+}
+
+DEFINE_INSTRUCTION( TRB )
+{
+    uint8_t addressedByte = memData;
+
+    rState.modifyFlag( (addressedByte & rState.regA) != 0, flag_Z );
+
+    memData = addressedByte & ~rState.regA;
+}
+
 DEFINE_INSTRUCTION( BRA )
 {
     rState.pcBranchOffset( memData );
+}
+
+DEFINE_INSTRUCTION( PHY )
+{
+    rState.stackPushByte( rState.regY );
+}
+
+DEFINE_INSTRUCTION( PLY )
+{
+    rState.regY = rState.stackPopByte();
+    rState.testNegativeZero( rState.regY );
+}
+
+DEFINE_INSTRUCTION( PHX )
+{
+    rState.stackPushByte( rState.regX );
+}
+
+DEFINE_INSTRUCTION( PLX )
+{
+    rState.regX = rState.stackPopByte();
+    rState.testNegativeZero( rState.regX );
 }
