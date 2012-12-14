@@ -38,7 +38,7 @@ template <uint8_t opCodeNumber> inline std::string mcuInstructionName() { return
 // the opcode again.  Any typos will cause a link error.
 //   The arguments that can be used are:
 // 1.) rState - the main mcu state
-// 2.) accessor - an accessor to the data in question, if any
+// 2.) memData - an accessor to the data in question, if any
 // 3.) opCode - the numeric opcode
 #define DEFINE_INSTRUCTION( instrName ) \
     template<typename tAccessor> inline void mcuInstruction_ ## instrName( tMCUState& rState, tAccessor memData, uint8_t opCode )

@@ -30,6 +30,8 @@ enum eAddressingMode_Mem
     am_Indirect,
     am_Indirect_X,
     am_Indirect_Y,
+    am_Indirect_ZP, // Introduced in 65c02
+    am_AbsIdxIndirect, // Introduced in 65c02
 };
 
 enum eAddressingMode_Register
@@ -189,6 +191,8 @@ struct tMCUState
         case am_Indirect:       return tMemoryAccessor( *this, pcReadWord() );
         case am_Indirect_X:     return tMemoryAccessor( *this, memReadWord( (pcReadByte() + regX) & UINT8_MAX ) );
         case am_Indirect_Y:     return tMemoryAccessor( *this, memReadWord( pcReadByte() ) + regY );
+        case am_Indirect_ZP:    return tMemoryAccessor( *this, memReadWord( pcReadByte() ) );
+        case am_AbsIdxIndirect: return tMemoryAccessor( *this, pcReadWord() + regX );
         default:                assert( false );
         }
 

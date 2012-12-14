@@ -93,23 +93,45 @@ DEFINE_INSTRUCTION( EOR )
 DEFINE_INSTRUCTION( ADC )
 {
     uint8_t addressedByte = memData;
+
     // Overflow can only occur when adding two bytes that have identical signs
     bool canOverflow = rState.sameSign( rState.regA, addressedByte );
 
-    // @TODO: Decimal mode
+    if( rState.isFlagSet( flag_D ) )
+    {
+        // Decimal mode - based on http://www.6502.org/tutorials/decimal_mode.html#A
+        // to also give same results when invalid data is passed in
+        uint16_t tmp = (rState.regA & 0xF) + (addressedByte & 0xF);
+        if( rState.isFlagSet( flag_C ) )
+            ++tmp;
 
-    uint16_t tmp = rState.regA;
-    tmp += addressedByte;
-    if( rState.isFlagSet( flag_C ) )
-        ++tmp;
+        if( tmp >= 10 ) // maps 11 -> 19 to 0x11 -> 0x19 (17 -> 25)
+            tmp = ((tmp + 6) & 0xF) + 0x10;
 
-    rState.regA = tmp & UINT8_MAX;
-    rState.modifyFlag( tmp > UINT8_MAX, flag_C );
-    rState.testNegativeZero( rState.regA );
-    rState.modifyFlag( canOverflow && !rState.sameSign( rState.regA, addressedByte ), flag_V );
-    // Overflow has occurred if:
+        tmp += (rState.regA & 0xF0) + (addressedByte & 0xF0);
+
+        if( tmp >= 0xA0 ) // 0xA0 represents 100, so add 0x60 to convert 0xA0 to 0x100
+            tmp += 0x60;
+
+        rState.regA = tmp & UINT8_MAX;
+        rState.modifyFlag( tmp >= 0x100, flag_C );
+    }
+    else
+    {
+        uint16_t tmp = rState.regA;
+        tmp += addressedByte;
+        if( rState.isFlagSet( flag_C ) )
+            ++tmp;
+
+        rState.regA = tmp & UINT8_MAX;
+        rState.modifyFlag( tmp > UINT8_MAX, flag_C );
+    }
+
+    // Overflow has occurred if (not sure if this is true in decimal mode as well):
     // 1.) We were adding two byte with identical signs
-    // 2.) The the result now has a different sign than the original*/
+    // 2.) The result now has a different sign than the original
+    rState.modifyFlag( canOverflow && !rState.sameSign( rState.regA, addressedByte ), flag_V );
+    rState.testNegativeZero( rState.regA );
 }
 
 DEFINE_INSTRUCTION( STA )
@@ -133,7 +155,52 @@ DEFINE_INSTRUCTION( CMP )
 
 DEFINE_INSTRUCTION( SBC )
 {
-    // @TODO!  See if I can express this in terms of ADC
+    uint8_t addressedByte = memData;
+    // Overflow can only occur when subtracting two bytes that have different signs
+    bool canOverflow = !rState.sameSign( rState.regA, addressedByte );
+
+    if( rState.isFlagSet( flag_D ) )
+    {
+        // Decimal mode - based on http://www.6502.org/tutorials/decimal_mode.html#A
+        // to also give same results when invalid data is passed in
+        //   This is based on sequence 4, for 65c02 emulation
+        int16_t tmp = (rState.regA & 0xF) - (addressedByte & 0xF);
+        int16_t result = rState.regA - addressedByte;
+
+        if( !rState.isFlagSet( flag_C ) )
+        {
+            --tmp;
+            --result;
+        }
+
+        // Carry flag has same behaviour as in binary mode
+        rState.modifyFlag( static_cast<uint16_t>(result) <= UINT8_MAX, flag_C );
+
+        if( result < 0 )
+            result -= 0x60;
+
+        if( tmp < 0 )
+            result -= 0x06;
+
+        rState.regA = result & UINT8_MAX;
+        rState.modifyFlag( tmp >= 0x100, flag_C );
+    }
+    else
+    {
+        uint16_t tmp = rState.regA - addressedByte;
+        if( !rState.isFlagSet( flag_C ) )
+            --tmp;
+
+        rState.regA = tmp & UINT8_MAX;
+        rState.modifyFlag( tmp <= UINT8_MAX, flag_C );
+    }
+
+    rState.modifyFlag( canOverflow && rState.sameSign( rState.regA, addressedByte ), flag_V );
+    // Overflow has occurred if:
+    // 1.) We were adding two byte with different signs
+    // 2.) The result now has a different sign than the original
+    //      (this is implied to have happened if it has the same sign as the addressed byte)
+    rState.testNegativeZero( rState.regA );
 }
 
 DECLARE_INSTRUCTION( 0x06, ASL, am_ZeroPage );
@@ -297,8 +364,14 @@ DEFINE_INSTRUCTION( JMP )
     // Assume a memory memData
     if( opCode == 0x4C )
         rState.regPC = memData.m_memAddr;
-    else
+    else if( opCode == 0x6C )
         rState.regPC = rState.memReadWord( memData.m_memAddr );
+    else if( opCode == 0x7C )
+        rState.regPC = rState.memReadWord( memData.m_memAddr );
+    else
+    {
+        assert( false );
+    }
 }
 
 DEFINE_INSTRUCTION( STY )
@@ -394,8 +467,6 @@ DECLARE_INSTRUCTION( 0x60, RTS, am_Implied );
 DEFINE_INSTRUCTION( BRK )
 {
     rState.regP |= flag_B;
-
-    // TODO - behave appropriately when the break instruction is hit!
 }
 
 DEFINE_INSTRUCTION( JSR )
@@ -441,111 +512,165 @@ DECLARE_INSTRUCTION( 0xEA, NOP, am_Implied );
 
 DEFINE_INSTRUCTION( PHP )
 {
-    // TODO
+    rState.stackPushByte( rState.regP );
 }
 
 DEFINE_INSTRUCTION( PLP )
 {
-    // TODO
+    rState.regP = rState.stackPopByte();
 }
 
 DEFINE_INSTRUCTION( PHA )
 {
-    // TODO
+    rState.stackPushByte( rState.regA );
 }
 
 DEFINE_INSTRUCTION( PLA )
 {
-    // TODO
+    rState.regA = rState.stackPopByte();
+    rState.testNegativeZero( rState.regA );
 }
 
 DEFINE_INSTRUCTION( DEY )
 {
-    // TODO
+    --rState.regY;
+    rState.testNegativeZero( rState.regY );
 }
 
 DEFINE_INSTRUCTION( TAY )
 {
-    // TODO
+    rState.regY = rState.regA;
+    rState.testNegativeZero( rState.regY );
 }
 
 DEFINE_INSTRUCTION( INY )
 {
-    // TODO
+    ++rState.regY;
+    rState.testNegativeZero( rState.regY );
 }
 
 DEFINE_INSTRUCTION( INX )
 {
-    // TODO
+    ++rState.regX;
+    rState.testNegativeZero( rState.regX );
 }
 
 DEFINE_INSTRUCTION( CLC )
 {
-    // TODO
+    rState.modifyFlag( false, flag_C );
 }
 
 DEFINE_INSTRUCTION( SEC )
 {
-    // TODO
+    rState.modifyFlag( true, flag_C );
 }
 
 DEFINE_INSTRUCTION( CLI )
 {
-    // TODO
+    rState.modifyFlag( false, flag_I );
 }
 
 DEFINE_INSTRUCTION( SEI )
 {
-    // TODO
+    rState.modifyFlag( true, flag_I );
 }
 
 DEFINE_INSTRUCTION( TYA )
 {
-    // TODO
+    rState.regA = rState.regY;
+    rState.testNegativeZero( rState.regA );
 }
 
 DEFINE_INSTRUCTION( CLV )
 {
-    // TODO
+    rState.modifyFlag( false, flag_V );
 }
 
 DEFINE_INSTRUCTION( CLD )
 {
-    // TODO
+    rState.modifyFlag( false, flag_D );
 }
 
 DEFINE_INSTRUCTION( SED )
 {
-    // TODO
+    rState.modifyFlag( true, flag_D );
 }
 
 DEFINE_INSTRUCTION( TXA )
 {
-    // TODO
+    rState.regA = rState.regX;
+    rState.testNegativeZero( rState.regA );
 }
 
 DEFINE_INSTRUCTION( TXS )
 {
-    // TODO
+    rState.regSP = rState.regX;
+    rState.testNegativeZero( rState.regSP );
 }
 
 DEFINE_INSTRUCTION( TAX )
 {
-    // TODO
+    rState.regX = rState.regA;
+    rState.testNegativeZero( rState.regX );
 }
 
 DEFINE_INSTRUCTION( TSX )
 {
-    // TODO
+    rState.regX = rState.regSP;
+    rState.testNegativeZero( rState.regX );
 }
 
 DEFINE_INSTRUCTION( DEX )
 {
-    // TODO
+    --rState.regX;
+    rState.testNegativeZero( rState.regX );
 }
 
 DEFINE_INSTRUCTION( NOP )
 {
-    // TODO
+    // No op
 }
 
+// 65c02 extensions
+
+// Old instructions with new addressing modes
+DECLARE_INSTRUCTION( 0x12, ORA, am_Indirect_ZP );
+DECLARE_INSTRUCTION( 0x32, AND, am_Indirect_ZP );
+DECLARE_INSTRUCTION( 0x52, EOR, am_Indirect_ZP );
+DECLARE_INSTRUCTION( 0x72, ADC, am_Indirect_ZP );
+DECLARE_INSTRUCTION( 0x92, STA, am_Indirect_ZP );
+DECLARE_INSTRUCTION( 0xB2, LDA, am_Indirect_ZP );
+DECLARE_INSTRUCTION( 0xD2, CMP, am_Indirect_ZP );
+DECLARE_INSTRUCTION( 0xF2, SBC, am_Indirect_ZP );
+
+DECLARE_INSTRUCTION( 0x34, BIT, am_ZeroPage_X );
+DECLARE_INSTRUCTION( 0x3C, BIT, am_Absolute_X );
+DECLARE_INSTRUCTION( 0x89, BIT, am_Immediate );
+
+DECLARE_INSTRUCTION( 0x1A, INC, am_Accum );
+DECLARE_INSTRUCTION( 0x3A, DEC, am_Accum );
+
+DECLARE_INSTRUCTION( 0x7C, JMP, am_AbsIdxIndirect );
+
+// New instructions
+DECLARE_INSTRUCTION( 0x64, STZ, am_ZeroPage );
+DECLARE_INSTRUCTION( 0x74, STZ, am_ZeroPage_X );
+DECLARE_INSTRUCTION( 0x9C, STZ, am_Absolute );
+DECLARE_INSTRUCTION( 0x9E, STZ, am_Absolute_X );
+
+DECLARE_INSTRUCTION( 0x04, TSB, am_ZeroPage );
+DECLARE_INSTRUCTION( 0x0C, TSB, am_ZeroPage );
+DECLARE_INSTRUCTION( 0x14, TRB, am_Absolute );
+DECLARE_INSTRUCTION( 0x1C, TRB, am_Absolute );
+
+DECLARE_INSTRUCTION( 0x80, BRA, am_Immediate );
+
+DECLARE_INSTRUCTION( 0x5A, PHY, am_Implied );
+DECLARE_INSTRUCTION( 0x7A, PLY, am_Implied );
+DECLARE_INSTRUCTION( 0xDA, PHX, am_Implied );
+DECLARE_INSTRUCTION( 0xFA, PLX, am_Implied );
+
+DEFINE_INSTRUCTION( BRA )
+{
+    rState.pcBranchOffset( memData );
+}
