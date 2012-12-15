@@ -1105,6 +1105,7 @@ void execute()
 	case 0xae:                          // LDX ABS
 		regX = memReadByte( popWord() );
 		LDX();
+        break;
 	case 0xb0:                          // BCS
 		offset = popByte();
 		if (carrySet()) { jumpBranch(offset); }
