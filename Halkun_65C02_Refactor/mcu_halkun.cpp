@@ -446,7 +446,9 @@ void execute()
 		else
 		{
 			regP |= B_FLAG;  //set break bit
-			stackPush( regPC );
+//			stackPush( regPC );
+            stackPush( (regPC >> 8) & UMASK) );
+            stackPush( (regPC & UMASK) );
 			stackPush( regP );
 			regP &= ~B_FLAG; //set brk back
 			regPC = memReadByte( 0xFFFE ) + (memReadByte( 0xFFFF) << 8);
@@ -737,7 +739,9 @@ void execute()
 		break;
 	case 0x40:                            // RTI
 		regP = stackPop() | X_FLAG;		// There is no B bit!
-		regPC = (stackPop() | (stackPop() << 8));
+        value = stackPop();
+        value |= stackPop() << 8;
+		regPC = value;
 		break;
 	case 0x41:                            // EOR INDX
 		zp = (popByte() + regX)&UMASK;
@@ -844,7 +848,9 @@ void execute()
 		LSR(value);
 		break;
 	case 0x60:                           // RTS
-		regPC = (stackPop() | (stackPop() << 8)) + 1;
+        value = stackPop();
+        value |= (stackPop() << 8);
+		regPC = value + 1;
 		break;
 	case 0x61:                           // ADC INDX
 		zp = (popByte() + regX)&UMASK;
