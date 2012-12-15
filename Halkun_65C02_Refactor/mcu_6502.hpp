@@ -390,7 +390,7 @@ DEFINE_INSTRUCTION( STY )
 DEFINE_INSTRUCTION( LDY )
 {
     rState.regY = memData;
-    rState.testNegativeZero( memData );
+    rState.testNegativeZero( rState.regY );
 }
 
 DEFINE_INSTRUCTION( CPY )
@@ -398,7 +398,7 @@ DEFINE_INSTRUCTION( CPY )
     uint8_t addressedByte = memData;
     rState.modifyFlag( rState.regY >= addressedByte, flag_C );
     rState.modifyFlag( rState.regY == addressedByte, flag_Z );
-    rState.modifyFlag( rState.regY < addressedByte, flag_N );
+    rState.modifyFlag( ((rState.regY - addressedByte) & 0x80) != 0, flag_N );
 }
 
 DEFINE_INSTRUCTION( CPX )
@@ -407,7 +407,7 @@ DEFINE_INSTRUCTION( CPX )
 
     rState.modifyFlag( rState.regX >= addressedByte, flag_C );
     rState.modifyFlag( rState.regX == addressedByte, flag_Z );
-    rState.modifyFlag( rState.regX < addressedByte, flag_N );
+    rState.modifyFlag( ((rState.regX - addressedByte) & 0x80) != 0, flag_N );
 }
 
 DECLARE_INSTRUCTION( 0x10, BPL, am_Relative );
