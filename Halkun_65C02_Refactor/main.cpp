@@ -3,6 +3,9 @@
 #include <cstdint>
 #include <cassert>
 #include <conio.h>
+#include <sstream>
+
+#include <cctype>
 
 #include "mcu_core.hpp"
 
@@ -42,18 +45,21 @@ void printDisassembly( tMCUState& rState, uint16_t memPos, unsigned totalInstruc
     }
 }
 
-void printState( tMCUState& rState )
+void printState( tMCUState& mcu )
 {
     std::cout
-        << "A=" << tHexFormat( rState.regA ) << "  X=" << tHexFormat( rState.regX ) << "  Y=" << tHexFormat( rState.regY ) << "  S=" << tHexFormat( rState.regSP ) << "  PC=" << tHexFormat( rState.regPC ) << std::endl
-        << "P=" << tHexFormat( rState.regP ) << "  ";
+        << "A=" << tHexFormat( mcu.regA ) << "  X=" << tHexFormat( mcu.regX ) << "  Y=" << tHexFormat( mcu.regY ) << "  S=" << tHexFormat( mcu.regSP ) << "  PC=" << tHexFormat( mcu.regPC ) << std::endl
+        << "P=" << tHexFormat( mcu.regP ) << "  ";
 
     const char *pFlagNames[] = { "C", "Z", "I", "D", "B", "X", "V", "N" };
 
     for( unsigned bitPos = 0; bitPos < 8; ++bitPos )
-        std::cout << (rState.isFlagSet( eFlags(1<< bitPos) ) ? " " : "N" ) << pFlagNames[bitPos] << " ";
+        std::cout << (mcu.isFlagSet( eFlags(1<< bitPos) ) ? " " : "N" ) << pFlagNames[bitPos] << " ";
 
     std::cout << std::endl;
+
+    printDisassembly( mcu, mcu.regPC, 1 );
+
 /*    flag_C = 0x01, // Carry
     flag_Z = 0x02, // Zero
     flag_I = 0x04, // IRQ
@@ -66,6 +72,39 @@ void printState( tMCUState& rState )
 
 void load_rom( uint8_t *pMemory );
 void load_brk( uint8_t *pMemory );
+
+void freeRunMode( tMCUState& mcu )
+{
+    while( true )
+    {
+        mcu.pcExecute();
+
+        if( _kbhit() )
+        {
+            int ch = _getch();
+
+            if( ch == 0 )
+            {
+                // Escape code - go into debugger
+                // So push keys like F1-F12 to get into the debugger, otherwise
+                // it goes into the serial port
+                _getch();
+                break;
+            }
+            else
+                mcu.serialToMCUPushByte( ch );
+        }
+
+        if( !mcu.serialFromMCUEmpty() )
+            std::cout << mcu.serialFromMCUPopByte();
+    }
+}
+
+// Enters debugging mode
+// Returns:
+//   true - to continue into free run mode
+//  false - to exit the debugger
+bool debugMode( tMCUState& mcu );
 
 int main( int argc, char *argv[] )
 {
@@ -84,56 +123,13 @@ int main( int argc, char *argv[] )
     tMCUState mcu( mcuMemory );
 
     while( true )
-    {    
-        while( true )
-        {
-            mcu.pcExecute();
-
-            if( _kbhit() )
-            {
-                int ch = _getch();
-
-                if( ch == 0 )
-                {
-                    // Escape code - go into debugger
-                    _getch();
-                    break;
-                }
-                else
-                    mcu.serialToMCUPushByte( ch );
-            }
-
-            if( !mcu.serialFromMCUEmpty() )
-                std::cout << mcu.serialFromMCUPopByte();
-        }
-
-        printState( mcu );
-        printDisassembly( mcu, mcu.regPC, 1 );
-
-        std::cin.get();
-    }
-    return 0;
-    for( unsigned int i = 0; i < 256; ++i )
     {
-        mcu.regPC = i;
+        freeRunMode( mcu );
 
-        std::cout << std::hex << std::setw(2)  << std::setfill('0') << i;
-
-        std::cout << " : " << mcu.pcDecode() << std::endl;
-
-        if( (i & 7) == 7 )
+        // Broken out of free run mode, into the debugger
+        if( !debugMode( mcu ) )
             break;
     }
-
-    mcu.regPC = 0;
-    for( unsigned i = 0; i < 8; ++i )
-    {
-        uint8_t opCodeLength = mcu.decodeFullOpcodeLength( mcu.regPC );
-        std::cout << " : " << mcu.pcDecode() << " [" << unsigned(opCodeLength) << "]" << std::endl;
-        mcu.regPC += opCodeLength;
-    }
-
-    std::cin.get();
 
     return 0;
 }
@@ -545,4 +541,58 @@ void load_brk( uint8_t *pMemory ) //This is the brk vector code. Prints "BRK Err
 	{
 		pMemory[0x1000+i] = brkcode [i];
 	}
+}
+
+
+bool debugMode( tMCUState& mcu )
+{
+    std::cout << std::endl;
+
+    // Dump the current state
+    printState( mcu );
+
+    while( true )
+    {
+        std::cout << std::endl << " - ";
+
+        std::string inputLine;
+        std::getline( std::cin, inputLine );
+
+        std::istringstream parseLine( inputLine );
+
+        // Find the first non-whitespace character as the command
+        char debugCommand = 't'; // Blank lines are treated as traces
+
+        parseLine >> debugCommand;
+
+        switch( debugCommand )
+        {
+        case 'h': // Help (fall through)
+        case '?': // Help
+            std::cout
+                << " ? - Help\n"
+                << " q - Quit\n"
+                << " g - Go - exit debugger\n"
+                << " t - Trace - one instruction at a time\n"
+                << " u [n] - Disassemble 'n' instructions from current PC\n";
+            break;
+        case 'q': // 'Quit'
+            return false;
+        case 'g': // 'Go'
+            return true;
+        case 't': // 'Trace' (execute one instruction)
+            mcu.pcExecute();
+            printState( mcu );
+            break;
+        case 'u': // Disassemble
+            {
+                unsigned instructions = 1;
+                parseLine >> instructions;
+                printDisassembly( mcu, mcu.regPC, instructions );
+            }
+            break;
+        }
+    }
+
+    return false;
 }
