@@ -7,6 +7,8 @@
 
 #include <queue>
 
+#include "mcu_trace.hpp"
+
 enum eFlags
 {
     flag_C = 0x01, // Carry
@@ -60,6 +62,36 @@ struct tMCUState
 
     uint8_t *m_pMemory; // Pointer to memory
 
+#ifdef DO_MCU_TRACE
+    tMemoryTraceQueue m_memTrace;
+    const uint8_t *m_pReadSequence;
+    uint8_t m_lastWriteResult;
+
+    void setTraceState( const tTraceState& rTrace )
+    {
+        regA = rTrace.regA;
+        regX = rTrace.regX;
+        regY = rTrace.regY;
+        regP = rTrace.regP;
+        regPC = rTrace.regPC;
+        regSP = rTrace.regSP;
+    }
+
+    tTraceState getTraceState()
+    {
+        tTraceState trace;
+
+        trace.regA = regA;
+        trace.regX = regX;
+        trace.regY = regY;
+        trace.regP = regP;
+        trace.regPC = regPC;
+        trace.regSP = regSP;
+
+        return trace;
+    }
+#endif
+
     // Constants
     static const uint16_t cResetVector  = 0xFFFC; // Address where the reset vector should be
     static const uint16_t cIRQVector    = 0xFFFE; // Address where the IRQ vector should be
@@ -68,7 +100,12 @@ struct tMCUState
     static const uint16_t cSerialRx     = 0x0303; // Read a byte here to receive data over the serial port
 
     // Constructor - pass in 64k of memory
-    tMCUState( uint8_t *pMemory ) : m_pMemory( pMemory ), m_decodePos( 0 )
+    tMCUState( uint8_t *pMemory )
+        : m_pMemory( pMemory )
+        , m_decodePos( 0 )
+#ifdef DO_MCU_TRACE
+        , m_pReadSequence( 0 )
+#endif
     { cpuReset(); }
 
     // Useful functions
@@ -89,6 +126,7 @@ struct tMCUState
     uint8_t decodeFullOpcodeLength( uint16_t memPos ); // Returns number of bytes used in the opcode + addressing @memPos
 
     std::string decodeOpcode( uint16_t memPos ); // Returns a human readable string for the opcode @memPos
+    std::string decodeOpcodeDirect( uint8_t opCode ); // Returns a human readable string for the opcode with value opcode
     std::string decodeAddressing( uint16_t memPos ); // Returns a human readable string for the addressing of the opcode @memPos
     uint8_t decodeAddressingLength( uint16_t memPos ); // Returns number of bytes used in the addressing @memPos
 
@@ -103,10 +141,23 @@ struct tMCUState
     // @TODO: Allow access to special memory locations
     uint8_t memReadByte( uint16_t address )
     {
+        uint8_t readValue = 0;
+
+#ifdef DO_MCU_TRACE
+        if( m_pReadSequence )
+        {
+            readValue = *m_pReadSequence;
+            ++m_pReadSequence;
+        }
+        m_memTrace.push( tMemoryTrace( address, readValue, true ) );
+#else
         if( address == cSerialRx )
-            return serialToMCUPopByte();
+            serialToMCUPopByte();
         else
-            return m_pMemory[address];
+            readValue = m_pMemory[address];
+#endif
+
+        return readValue;
     }
 
     uint16_t memReadWord( uint16_t address )
@@ -119,6 +170,11 @@ struct tMCUState
 
     void memWriteByte( uint16_t address, uint8_t data )
     {
+#ifdef DO_MCU_TRACE
+        m_memTrace.push( tMemoryTrace( address, data, false ) );
+        m_lastWriteResult = data;
+#endif
+
         if( address == cSerialTx )
             serialFromMCUPushByte( data );
         else

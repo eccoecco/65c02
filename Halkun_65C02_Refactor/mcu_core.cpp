@@ -48,9 +48,8 @@ void tMCUState::pcExecute()
 // Decodes the current instruction into a human readable string
 std::string tMCUState::decodeFullOpcode( uint16_t memPos )
 {
-    std::string addressingMode = decodeAddressing( memPos );
-
     std::string opCodeName = decodeOpcode( memPos );
+    std::string addressingMode = decodeAddressing( memPos );
 
     if( !addressingMode.empty() )
     {
@@ -88,6 +87,11 @@ std::string tMCUState::decodeOpcode( uint16_t memPos )
 {
     uint8_t opCode = memReadByte( memPos );
 
+    return decodeOpcodeDirect( opCode );
+}
+
+std::string tMCUState::decodeOpcodeDirect( uint8_t opCode )
+{
     switch( opCode )
     {
     EXEC_OPCODE_64( 0, mcuInstructionName );

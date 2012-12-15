@@ -57,7 +57,7 @@ DEFINE_INSTRUCTION( TSB )
 {
     uint8_t addressedByte = memData;
 
-    rState.modifyFlag( (addressedByte & rState.regA) != 0, flag_Z );
+    rState.modifyFlag( (addressedByte & rState.regA) == 0, flag_Z );
 
     memData = addressedByte | rState.regA;
 }
@@ -66,7 +66,7 @@ DEFINE_INSTRUCTION( TRB )
 {
     uint8_t addressedByte = memData;
 
-    rState.modifyFlag( (addressedByte & rState.regA) != 0, flag_Z );
+    rState.modifyFlag( (addressedByte & rState.regA) == 0, flag_Z );
 
     memData = addressedByte & ~rState.regA;
 }

@@ -7,6 +7,7 @@
 
 #include <cctype>
 
+#include "mcu_trace.hpp"
 #include "mcu_core.hpp"
 
 struct tHexFormat
@@ -106,6 +107,8 @@ void freeRunMode( tMCUState& mcu )
 //  false - to exit the debugger
 bool debugMode( tMCUState& mcu );
 
+void verifyBehaviour( tMCUState& mcu );
+
 int main( int argc, char *argv[] )
 {
     const unsigned cMemSize = 65536;
@@ -121,6 +124,10 @@ int main( int argc, char *argv[] )
 	mcuMemory[0xFFFF] = 0x10;
 
     tMCUState mcu( mcuMemory );
+
+    verifyBehaviour( mcu );
+
+    return 0;
 
     while( true )
     {
@@ -595,4 +602,189 @@ bool debugMode( tMCUState& mcu )
     }
 
     return false;
+}
+
+
+void setReadSequence( const uint8_t *pDebugRead );
+tMemoryTraceQueue& getMemoryTraceQueue();
+void setTraceState( const tTraceState& rTrace );
+tTraceState getTraceState();
+void execute();
+void resetLastWrite();
+uint8_t getLastWrite();
+
+void resetMemTraces( tMCUState& mcu )
+{
+    while( !mcu.m_memTrace.empty() )
+        mcu.m_memTrace.pop();
+
+    while( !getMemoryTraceQueue().empty() )
+        getMemoryTraceQueue().pop();
+}
+
+void displayTrace( tTraceState& state )
+{
+    std::cout
+        << "A: " << tHexFormat(uint16_t(state.regA))
+        << ", X:" << tHexFormat(uint16_t(state.regX))
+        << ", Y:" << tHexFormat(uint16_t(state.regY))
+        << ", S:" << tHexFormat(uint16_t(state.regSP))
+        << ", PC:" << tHexFormat(uint16_t(state.regPC))
+        << ", P:" << tHexFormat(uint16_t(state.regP))
+        << std::endl;
+}
+
+// Verify against Halkun
+void verifyBehaviour( tMCUState& mcu, uint8_t opCodeUnderTest );
+
+void verifyBehaviour( tMCUState& mcu )
+{
+    // Skip BRK
+    for( unsigned opCode = 0x55; opCode < 256; ++opCode )
+    {
+        std::string opCodeName = mcu.decodeOpcodeDirect( opCode );
+        if( opCodeName == "ADC" || opCodeName == "SBC" )
+        {
+            std::cout << "Skipping " << opCodeName << std::endl;
+        }
+        else if( opCodeName != "??" )
+        {
+            std::cout << "Testing " << tHexFormat(uint8_t(opCode)) << ": " << opCodeName << std::endl;
+            verifyBehaviour( mcu, opCode );
+        }
+    }
+}
+
+void verifyBehaviour( tMCUState& mcu, uint8_t opCodeUnderTest )
+{
+    // Step 1 - Reset the traces
+    resetMemTraces( mcu );
+
+    // Step 2 - For this opcode, determine how many memory accesses there are
+    uint8_t pReadSequence[256];
+    memset( pReadSequence, 0, 256 );
+    pReadSequence[0] = opCodeUnderTest;
+/*    for( unsigned i = 1; i < 10; ++i )
+        pReadSequence[i] = i * 6;*/
+
+    mcu.m_pReadSequence = pReadSequence;
+    mcu.pcExecute();
+
+    // Step 3 - Count how many read/writes
+    unsigned readCount = 0;
+    unsigned writeCount = 0;
+    unsigned lastRead = 0;
+    unsigned lastWrite = 0;
+    unsigned accessIndex = 0;
+
+    while( !mcu.m_memTrace.empty() )
+    {
+        tMemoryTrace memTrace = mcu.m_memTrace.front();
+        mcu.m_memTrace.pop();
+
+        if( memTrace.m_isRead )
+        {
+            ++readCount;
+            lastRead = accessIndex;
+        }
+        else
+        {
+            ++writeCount;
+            lastWrite = accessIndex;
+        }
+
+        ++accessIndex;
+    }
+
+    unsigned totalCount = readCount + writeCount;
+
+    // Step 4 - Initialise registers to known values
+    tTraceState traceState;
+    traceState.regA = 0;
+    traceState.regX = 20;
+    traceState.regY = 50;
+    traceState.regP = 0;
+    traceState.regSP = 100;
+    traceState.regPC = 2000;
+
+    bool complete = false;
+    bool success = false;
+
+    while( !complete )
+    {
+        // Step 5 - Set the states to both state machines to be the same
+        mcu.setTraceState( traceState );
+        setTraceState( traceState );
+
+        mcu.m_pReadSequence = pReadSequence;
+        mcu.m_lastWriteResult = 0;
+
+        setReadSequence( pReadSequence );
+        resetLastWrite();
+
+        // Step 6 - Execute!
+        mcu.pcExecute();
+        execute();
+
+        // Step 7 - Get the new states
+        tTraceState mcuState, halkunState;
+        mcuState = mcu.getTraceState();
+        halkunState = getTraceState();
+
+        if( memcmp( &mcuState, &halkunState, sizeof(tTraceState) ) != 0 || mcu.m_lastWriteResult != getLastWrite() )
+        {
+            mcu.m_pReadSequence = pReadSequence;
+            std::cout << "Opcode: " << mcu.decodeFullOpcode( 0 );
+
+            std::cout << "\nState match difference:\nInitial state:\n  ";
+            displayTrace( traceState );
+            std::cout << "Read: ";
+            for( unsigned readIndex = 0; readIndex < readCount; ++readIndex )
+            {
+                std::cout << tHexFormat( pReadSequence[readIndex] ) << " ";
+            }
+
+            std::cout << "\n\nMCU state:\n  ";
+            displayTrace( mcuState );
+            std::cout << "Last write: " << tHexFormat(mcu.m_lastWriteResult);
+            std::cout << "\nHalkun core:\n  ";
+            displayTrace( halkunState );
+            std::cout << "Last write: " << tHexFormat(getLastWrite()) << std::endl;
+            complete = true;
+        }
+        else
+        {
+            // Move to the next state
+            traceState.regA = (traceState.regA + 1) & 0xFF;
+            if( traceState.regA == 0 )
+            {
+                if( lastRead == 0 || ++pReadSequence[lastRead] == 0 )
+                {
+/*                traceState.regY = (traceState.regY + 8) & 0xFF;
+                if( traceState.regY == 0 )
+                {
+                    traceState.regX = (traceState.regX + 8) & 0xFF;
+                    if( traceState.regX == 0 )*/
+                    {
+                        if( traceState.regP == 0 )
+                            traceState.regP = 1;
+                        else
+                            traceState.regP <<= 1;
+
+                        if( traceState.regP > 0xFF )
+                        {
+                            success = true;
+                            complete = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Reset states (cleanup)
+        resetMemTraces( mcu );
+    }
+
+    if( success )
+        std::cout << "Success\n";
 }
