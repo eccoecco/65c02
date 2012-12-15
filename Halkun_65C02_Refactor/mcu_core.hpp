@@ -5,6 +5,8 @@
 #include <cassert>
 #include <string>
 
+#include <queue>
+
 enum eFlags
 {
     flag_C = 0x01, // Carry
@@ -59,9 +61,11 @@ struct tMCUState
     uint8_t *m_pMemory; // Pointer to memory
 
     // Constants
-    static const uint16_t cResetVector = 0xFFFC; // Address where the reset vector should be
-    static const uint16_t cIRQVector   = 0xFFFE; // Address where the IRQ vector should be
-    static const uint16_t cStackOffset = 0x0100; // Address in memory where the stack is offset
+    static const uint16_t cResetVector  = 0xFFFC; // Address where the reset vector should be
+    static const uint16_t cIRQVector    = 0xFFFE; // Address where the IRQ vector should be
+    static const uint16_t cStackOffset  = 0x0100; // Address in memory where the stack is offset
+    static const uint16_t cSerialTx     = 0x0302; // Write a byte here to transmit data over the serial port
+    static const uint16_t cSerialRx     = 0x0303; // Read a byte here to receive data over the serial port
 
     // Constructor - pass in 64k of memory
     tMCUState( uint8_t *pMemory ) : m_pMemory( pMemory ), m_decodePos( 0 )
@@ -97,10 +101,15 @@ struct tMCUState
     // Useful actions
 
     // @TODO: Allow access to special memory locations
-    uint8_t memReadByte( uint16_t address ) const
-    { return m_pMemory[address]; }
+    uint8_t memReadByte( uint16_t address )
+    {
+        if( address == cSerialRx )
+            return serialToMCUPopByte();
+        else
+            return m_pMemory[address];
+    }
 
-    uint16_t memReadWord( uint16_t address ) const
+    uint16_t memReadWord( uint16_t address )
     {
         // Returns a 16-bit word (little endian) from address
         uint16_t finalWord = memReadByte( address );
@@ -109,7 +118,12 @@ struct tMCUState
     }
 
     void memWriteByte( uint16_t address, uint8_t data )
-    { m_pMemory[address] = data; }
+    {
+        if( address == cSerialTx )
+            serialFromMCUPushByte( data );
+        else
+            m_pMemory[address] = data;
+    }
 
     void stackPushByte( uint8_t value ) // Pushes a byte on to the stack
     {
@@ -142,14 +156,14 @@ struct tMCUState
 
     void stackPushWord( uint16_t value )
     {
-        stackPushByte( static_cast<uint8_t>(value) );
         stackPushByte( static_cast<uint8_t>(value >> 8) );
+        stackPushByte( static_cast<uint8_t>(value) );
     }
 
     uint16_t stackPopWord()
     {
         uint16_t result = stackPopByte();
-        result |= (stackPopByte() << 8);
+        result |= stackPopByte() << 8;
         return result;
     }
 
@@ -207,11 +221,11 @@ struct tMCUState
     {
         switch( mode )
         {
-        case am_Immediate:      return tMemoryAccessor( *this, ++regPC );
+        case am_Immediate:      return tMemoryAccessor( *this, regPC++ );
         case am_ZeroPage:       return tMemoryAccessor( *this, pcReadByte() );
         case am_ZeroPage_X:     return tMemoryAccessor( *this, (pcReadByte() + regX) & UINT8_MAX );
         case am_ZeroPage_Y:     return tMemoryAccessor( *this, (pcReadByte() + regY) & UINT8_MAX );
-        case am_Relative:       return tMemoryAccessor( *this, ++regPC );
+        case am_Relative:       return tMemoryAccessor( *this, regPC++ );
         case am_Absolute:       return tMemoryAccessor( *this, pcReadWord() );
         case am_Absolute_X:     return tMemoryAccessor( *this, pcReadWord() + regX );
         case am_Absolute_Y:     return tMemoryAccessor( *this, pcReadWord() + regY );
@@ -296,10 +310,22 @@ struct tMCUState
     inline static bool sameSign( uint8_t value1, uint8_t value2 )
     { return ((value1 ^ value2) & 0x80) == 0; }
 
+    // =====
+    // Serial interface
+    void serialToMCUPushByte( uint8_t byte );
+    uint8_t serialToMCUPopByte();
+    bool serialToMCUEmpty();
+
+    void serialFromMCUPushByte( uint8_t byte );
+    uint8_t serialFromMCUPopByte();
+    bool serialFromMCUEmpty();
+
 private:
     tMCUState(); // Disallowed - always need a pointer to memory
 
-    uint16_t    m_decodePos; // Used internally for address decoding
+    uint16_t                m_decodePos; // Used internally for address decoding
+    std::queue< uint8_t >   m_serialToMCUFIFO;
+    std::queue< uint8_t >   m_serialFromMCUFIFO;
 };
 
 #endif

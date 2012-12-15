@@ -159,3 +159,45 @@ std::string tMCUState::decodeAddressing( eAddressingMode_Null mode )
 {
     return "";
 }
+
+void tMCUState::serialToMCUPushByte( uint8_t byte )
+{
+    m_serialToMCUFIFO.push( byte );
+}
+
+uint8_t tMCUState::serialToMCUPopByte()
+{
+    if( m_serialToMCUFIFO.empty() )
+        return 0;
+
+    uint8_t serialData = m_serialToMCUFIFO.front();
+    m_serialToMCUFIFO.pop();
+
+    return serialData;
+}
+
+bool tMCUState::serialToMCUEmpty()
+{
+    return m_serialToMCUFIFO.empty();
+}
+
+void tMCUState::serialFromMCUPushByte( uint8_t byte )
+{
+    m_serialFromMCUFIFO.push( byte );
+}
+
+uint8_t tMCUState::serialFromMCUPopByte()
+{
+    if( m_serialFromMCUFIFO.empty() )
+        return 0;
+
+    uint8_t serialData = m_serialFromMCUFIFO.front();
+    m_serialFromMCUFIFO.pop();
+
+    return serialData;
+}
+
+bool tMCUState::serialFromMCUEmpty()
+{
+    return m_serialFromMCUFIFO.empty();
+}
