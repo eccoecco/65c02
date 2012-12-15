@@ -613,7 +613,6 @@ DEFINE_INSTRUCTION( TXA )
 DEFINE_INSTRUCTION( TXS )
 {
     rState.regSP = rState.regX;
-    rState.testNegativeZero( rState.regSP );
 }
 
 DEFINE_INSTRUCTION( TAX )
