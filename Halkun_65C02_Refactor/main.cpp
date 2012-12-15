@@ -639,11 +639,10 @@ void verifyBehaviour( tMCUState& mcu, uint8_t opCodeUnderTest );
 
 void verifyBehaviour( tMCUState& mcu )
 {
-    // Skip BRK
-    for( unsigned opCode = 0x55; opCode < 256; ++opCode )
+    for( unsigned opCode = 0; opCode < 256; ++opCode )
     {
         std::string opCodeName = mcu.decodeOpcodeDirect( opCode );
-        if( opCodeName == "ADC" || opCodeName == "SBC" )
+        if( opCodeName == "ADC" || opCodeName == "SBC" || opCodeName == "BRK" )
         {
             std::cout << "Skipping " << opCodeName << std::endl;
         }
@@ -653,6 +652,9 @@ void verifyBehaviour( tMCUState& mcu )
             verifyBehaviour( mcu, opCode );
         }
     }
+
+    std::cout << "\n\nTests complete!\n";
+    std::cin.get();
 }
 
 void verifyBehaviour( tMCUState& mcu, uint8_t opCodeUnderTest )
