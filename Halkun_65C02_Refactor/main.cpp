@@ -125,9 +125,13 @@ int main( int argc, char *argv[] )
 
     tMCUState mcu( mcuMemory );
 
+#ifdef DO_MCU_TRACE
+
     verifyBehaviour( mcu );
 
     return 0;
+
+#endif
 
     while( true )
     {
@@ -580,7 +584,7 @@ bool debugMode( tMCUState& mcu )
                 << " ? - Help\n"
                 << " q - Quit\n"
                 << " g - Go - exit debugger\n"
-                << " t - Trace - one instruction at a time\n"
+                << " t [n] - Trace - n instruction(s) - default of 1 instruction\n"
                 << " u [n] - Disassemble 'n' instructions from current PC\n";
             break;
         case 'q': // 'Quit'
@@ -588,8 +592,16 @@ bool debugMode( tMCUState& mcu )
         case 'g': // 'Go'
             return true;
         case 't': // 'Trace' (execute one instruction)
-            mcu.pcExecute();
-            printState( mcu );
+            {
+                unsigned instructions = 1;
+                parseLine >> instructions;
+                while( instructions > 0 )
+                {
+                    mcu.pcExecute();
+                    --instructions;
+                }
+                printState( mcu );
+            }
             break;
         case 'u': // Disassemble
             {
@@ -604,6 +616,7 @@ bool debugMode( tMCUState& mcu )
     return false;
 }
 
+#ifdef DO_MCU_TRACE
 
 void setReadSequence( const uint8_t *pDebugRead );
 tMemoryTraceQueue& getMemoryTraceQueue();
@@ -790,3 +803,5 @@ void verifyBehaviour( tMCUState& mcu, uint8_t opCodeUnderTest )
     if( success )
         std::cout << "Success\n";
 }
+
+#endif

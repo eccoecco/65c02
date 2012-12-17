@@ -152,7 +152,7 @@ struct tMCUState
         m_memTrace.push( tMemoryTrace( address, readValue, true ) );
 #else
         if( address == cSerialRx )
-            serialToMCUPopByte();
+            readValue = serialToMCUPopByte();
         else
             readValue = m_pMemory[address];
 #endif

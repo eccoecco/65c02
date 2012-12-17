@@ -40,6 +40,13 @@ int regSP = 0xFF;
 //byte * const memory = (byte *) 0x8000; 		//0x8000=0xFFFF 32k window.
 byte current_bank;
 
+void banksel( byte )
+{
+    // Do nothing
+}
+
+#ifdef DO_MCU_TRACE
+
 tMemoryTraceQueue g_traceQueue;
 const uint8_t *g_pReadSequence = 0;
 uint8_t g_lastWriteResult = 0;
@@ -88,11 +95,6 @@ tMemoryTraceQueue& getMemoryTraceQueue()
     return g_traceQueue;
 }
 
-void banksel( byte )
-{
-    // Do nothing
-}
-
 void memStoreByte(int addr, byte value )
 {
     g_traceQueue.push( tMemoryTrace( addr, value, false ) );
@@ -110,6 +112,61 @@ byte memReadByte(int addr )
     return readValue;
 }
 
+#else
+
+uint8_t     g_pMemory[65536];
+
+// memStoreByte() - Poke a byte, don't touch any registers
+void memStoreByte(int addr,byte value )
+{
+	// Write registers
+/*	if(addr==0x0302) {Serial.write(value& 0xff);}  
+	else
+	if(addr==0x0300) {LCD.write(value& 0xff);}  
+	else
+	if(addr==0x0308) {banksel(value& 0xff);}  
+	else*/
+	{
+		byte save_bank=current_bank;
+		if (addr <= 0x7FFF)
+		{
+			banksel(0);
+			g_pMemory[addr]=value;
+			banksel(save_bank);
+		}
+		if (addr >= 0x8000)
+		{
+			g_pMemory[addr-0x8000]=value;
+		}
+	}
+}
+
+// memReadByte() - Peek a byte, don't touch any registers
+byte memReadByte(int addr ) 
+{  
+
+/*	if(addr==0x0303)  {return (serial_read());}	
+	else
+	if(addr==0x0301)  {return (keypad_read());}
+	else*/
+	{
+		byte value;
+		byte save_bank = current_bank;
+		if (addr <= 0x7FFF)
+		{
+			banksel(0);
+			value=g_pMemory[addr] ;
+			banksel(save_bank);
+		}
+		if (addr >= 0x8000)
+		{
+			value=g_pMemory[addr-0x8000];
+		}
+		return value;
+	}
+}
+
+#endif
 
 
 // CPUreset() - Resets CPU to startup state
