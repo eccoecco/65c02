@@ -1,3 +1,13 @@
+/*
+// JoshX '77 65c02 Core for the Arduino 2560 Mega
+// By Joshua "Halkun" Walker for Paul "Homr" Klimek
+// Based on the Javascript 6502 core by Stian Soreng
+// and the Arduino port by Rickard Andersson
+//
+// This code is GPL
+// TODO: EEPROM?
+*/
+
 #include "mcu_trace.hpp"
 #include <cstdint>
 
