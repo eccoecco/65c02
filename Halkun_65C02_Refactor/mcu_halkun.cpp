@@ -125,9 +125,9 @@ void CPUreset() {
 void stackPush(int value ) {
 	byte save_bank=current_bank;
 	banksel(0);
-	if( regSP >= 0 ) {
-		regSP--;
+	if( regSP > 0 ) {
         memStoreByte( (regSP&0xff)+0x100, value & 0xff );
+		regSP--;
 //		memory[(regSP&0xff)+0x100] = value & 0xff;
 	}
 	banksel(save_bank);
@@ -138,10 +138,10 @@ int stackPop() {
 	int value;
 	byte save_bank=current_bank;
 	banksel(0);
-	if( regSP < 0x100 ) {
+	if( regSP < 0xff ) {
 //		value = memory[regSP+0x100];
-        value = memReadByte( regSP + 0x100 );
 		regSP++;
+        value = memReadByte( regSP + 0x100 );
 		banksel(save_bank);
 		return(value);
 	} 
@@ -457,7 +457,7 @@ void execute()
 		{
 			regP |= B_FLAG;  //set break bit
 //			stackPush( regPC );
-            stackPush( (regPC >> 8) & UMASK) );
+            stackPush( (regPC >> 8) & UMASK);
             stackPush( (regPC & UMASK) );
 			stackPush( regP );
 			regP &= ~B_FLAG; //set brk back
